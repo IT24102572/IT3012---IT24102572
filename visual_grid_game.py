@@ -1,6 +1,7 @@
 # visual_grid_game.py
 import random
 import tkinter as tk
+from agent import SimpleReflexAgent, ModelBasedAgent
 
 
 class VisualGridHuntGame:
@@ -47,8 +48,15 @@ class VisualGridHuntGame:
         self.score = 0
         self.steps = 0
         self.collision = False
+        self.facing = 'Up'
+
+    def _cell_in_front(self):
+        x, y = self.agent_pos
+        return {'Up': (x, y+1), 'Down': (x, y-1), 'Left': (x-1, y), 'Right': (x+1, y)}[self.facing]
 
     def get_percept(self) -> dict:
+        front = self._cell_in_front()
+        in_bounds = 0 <= front[0] < self.width and 0 <= front[1] < self.height
         return {
             'agent_pos': list(self.agent_pos),
             'opponent_positions': [list(op) for op in self.opponents],
@@ -58,10 +66,14 @@ class VisualGridHuntGame:
             'collision': self.collision,
             'score': self.score,
             'remaining_food': len(self.food_positions),
-            'remaining_poison': len(self.poison_positions)
+            'remaining_poison': len(self.poison_positions),
+            'wall_ahead': (not in_bounds) or (front in self.walls),
+            'food_here': tuple(self.agent_pos) in self.food_positions,
         }
 
     def execute_action(self, action: str):
+        if action in ('Up', 'Down', 'Left', 'Right'):
+            self.facing = action
         self.steps += 1
         new_pos = list(self.agent_pos)
 
@@ -118,6 +130,7 @@ class GridGameGUI:
         self.env = VisualGridHuntGame(width=width, height=height, num_food=num_food, num_opponents=num_opponents, num_poison=num_poison,
                                       custom_walls=walls)
 
+        self.agent = SimpleReflexAgent()
         # Dynamically calculate cell size so the total canvas fits nicely within a 600x600 window ceiling
         max_canvas_dim = 600
         self.cell_size = max(20, min(max_canvas_dim // self.env.width, max_canvas_dim // self.env.height))
@@ -192,7 +205,8 @@ class GridGameGUI:
 
         def step():
             if not self.env.is_done():
-                action = random.choice(['Up', 'Down', 'Left', 'Right'])
+                percept = self.env.get_percept()
+                action = self.agent.sense_and_act(percept)
                 self.env.execute_action(action)
 
                 self.draw_grid()
