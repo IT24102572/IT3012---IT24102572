@@ -1,6 +1,7 @@
 from collections import deque
 import heapq
 import random
+import math
 
 class GreedyGridAgent:
     def __init__(self):
@@ -43,7 +44,7 @@ class SearchAgent:
     """Uninformed Search Agent supporting BFS, DFS, and UCS."""
     def __init__(self):
         self.plan = []
-        self.active_algo = 'BFS'  # Can be changed to 'DFS' or 'UCS'
+        self.active_algo = 'AStar'  # Can be changed to 'DFS' or 'UCS'
 
     def _neighbors(self, pos, walls, grid_size):
         x, y = pos
@@ -96,6 +97,38 @@ class SearchAgent:
                     heapq.heappush(frontier, (new_cost, npos, path + [action]))
         return None
 
+    def manhattan_distance(self, pos, goal):
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal):
+        return math.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
+
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+        walls = set(walls)
+        h_fn = self.manhattan_distance if heuristic_type == 'manhattan' else self.euclidean_distance
+        
+        # Priority Queue stores: (f_cost, g_cost, current_pos, path_taken)
+        frontier = [(h_fn(start_pos, goal_pos), 0, start_pos, [])]
+        reached_states = set()
+
+        while frontier:
+            f_cost, g_cost, current_pos, path_taken = heapq.heappop(frontier)
+
+            if current_pos == goal_pos:
+                return path_taken
+
+            if current_pos in reached_states:
+                continue
+            reached_states.add(current_pos)
+
+            for action, npos in self._neighbors(current_pos, walls, grid_size):
+                if npos not in reached_states:
+                    g_new = g_cost + 1
+                    f_new = g_new + h_fn(npos, goal_pos)
+                    heapq.heappush(frontier, (f_new, g_new, npos, path_taken + [action]))
+
+        return None
+
     def sense_and_act(self, percept: dict) -> str:
         if not self.plan:
             start = tuple(percept['agent_pos'])
@@ -114,6 +147,8 @@ class SearchAgent:
                 path = self.dfs_search(start, goal, walls, grid_size)
             elif self.active_algo == 'UCS':
                 path = self.ucs_search(start, goal, walls, grid_size)
+            elif self.active_algo == 'AStar':
+                path = self.astar_search(start, goal, walls, grid_size, heuristic_type='manhattan')
             else:
                 path = None
             self.plan = path if path else ['Up']
