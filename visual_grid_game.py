@@ -69,6 +69,9 @@ class VisualGridHuntGame:
             'remaining_poison': len(self.poison_positions),
             'wall_ahead': (not in_bounds) or (front in self.walls),
             'food_here': tuple(self.agent_pos) in self.food_positions,
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions),
         }
 
     def execute_action(self, action: str):

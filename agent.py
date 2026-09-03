@@ -1,3 +1,5 @@
+from collections import deque
+import heapq
 import random
 
 class GreedyGridAgent:
@@ -38,9 +40,82 @@ class ModelBasedAgent:
         return action
 
 class SearchAgent:
-    """Placeholder for Lab 3 Search Agent."""
+    """Uninformed Search Agent supporting BFS, DFS, and UCS."""
     def __init__(self):
-        pass
+        self.plan = []
+        self.active_algo = 'BFS'  # Can be changed to 'DFS' or 'UCS'
+
+    def _neighbors(self, pos, walls, grid_size):
+        x, y = pos
+        w, h = grid_size
+        for action, (nx, ny) in (('Up', (x, y+1)), ('Down', (x, y-1)),
+                                  ('Left', (x-1, y)), ('Right', (x+1, y))):
+            if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in walls:
+                yield action, (nx, ny)
+
+    def bfs_search(self, start_pos, goal_pos, walls, grid_size):
+        walls = set(walls)
+        frontier = deque([(start_pos, [])])
+        reached = {start_pos}
+        while frontier:
+            pos, path = frontier.popleft()
+            if pos == goal_pos:
+                return path
+            for action, npos in self._neighbors(pos, walls, grid_size):
+                if npos not in reached:
+                    reached.add(npos)
+                    frontier.append((npos, path + [action]))
+        return None
+
+    def dfs_search(self, start_pos, goal_pos, walls, grid_size):
+        walls = set(walls)
+        frontier = [(start_pos, [])]
+        reached = {start_pos}
+        while frontier:
+            pos, path = frontier.pop()
+            if pos == goal_pos:
+                return path
+            for action, npos in self._neighbors(pos, walls, grid_size):
+                if npos not in reached:
+                    reached.add(npos)
+                    frontier.append((npos, path + [action]))
+        return None
+
+    def ucs_search(self, start_pos, goal_pos, walls, grid_size):
+        walls = set(walls)
+        frontier = [(0, start_pos, [])]
+        best = {start_pos: 0}
+        while frontier:
+            cost, pos, path = heapq.heappop(frontier)
+            if pos == goal_pos:
+                return path
+            for action, npos in self._neighbors(pos, walls, grid_size):
+                new_cost = cost + 1
+                if npos not in best or new_cost < best[npos]:
+                    best[npos] = new_cost
+                    heapq.heappush(frontier, (new_cost, npos, path + [action]))
+        return None
 
     def sense_and_act(self, percept: dict) -> str:
-        return 'Up'
+        if not self.plan:
+            start = tuple(percept['agent_pos'])
+            walls = set(percept['walls'])
+            grid_size = percept['grid_size']
+            foods = percept['all_food']
+            if not foods:
+                return 'Up'
+            
+            # Select target food item using Manhattan distance
+            goal = min(foods, key=lambda f: abs(f[0]-start[0]) + abs(f[1]-start[1]))
+
+            if self.active_algo == 'BFS':
+                path = self.bfs_search(start, goal, walls, grid_size)
+            elif self.active_algo == 'DFS':
+                path = self.dfs_search(start, goal, walls, grid_size)
+            elif self.active_algo == 'UCS':
+                path = self.ucs_search(start, goal, walls, grid_size)
+            else:
+                path = None
+            self.plan = path if path else ['Up']
+
+        return self.plan.pop(0)
