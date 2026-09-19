@@ -1,3 +1,4 @@
+from logic_engine import KnowledgeBase
 from collections import deque
 import heapq
 import random
@@ -45,6 +46,11 @@ class SearchAgent:
     def __init__(self):
         self.plan = []
         self.active_algo = 'AStar'  # Can be changed to 'DFS' or 'UCS'
+
+        # Instantiate Knowledge Base and define domain rules
+        self.kb = KnowledgeBase()
+        self.kb.tell_rule(['TargetVisible', 'HasDust'], 'SafeToEngage')
+        self.kb.tell_rule(['SafeToEngage', 'BloodseekerMissing'], 'Retreat')
 
     def _neighbors(self, pos, walls, grid_size):
         x, y = pos
@@ -103,7 +109,7 @@ class SearchAgent:
     def euclidean_distance(self, pos, goal):
         return math.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
 
-    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, percept, heuristic_type='manhattan'):
         walls = set(walls)
         h_fn = self.manhattan_distance if heuristic_type == 'manhattan' else self.euclidean_distance
         
@@ -123,9 +129,27 @@ class SearchAgent:
 
             for action, npos in self._neighbors(current_pos, walls, grid_size):
                 if npos not in reached_states:
+                    # Clear KB and evaluate tile percepts for feasibility
+                    self.kb.clear_facts()
+                    
+                    if percept.get('target_visible'):
+                        self.kb.tell_fact('TargetVisible')
+                    if percept.get('has_dust'):
+                        self.kb.tell_fact('HasDust')
+                    if percept.get('bloodseeker_missing'):
+                        self.kb.tell_fact('BloodseekerMissing')
+
+                    self.kb.forward_chain()
+
+                    # Feasibility Check: Skip tile if 'Retreat' is deduced
+                    if 'Retreat' in self.kb.facts:
+                        continue
+
                     g_new = g_cost + 1
                     f_new = g_new + h_fn(npos, goal_pos)
                     heapq.heappush(frontier, (f_new, g_new, npos, path_taken + [action]))
+
+        return None
 
         return None
 
@@ -148,7 +172,7 @@ class SearchAgent:
             elif self.active_algo == 'UCS':
                 path = self.ucs_search(start, goal, walls, grid_size)
             elif self.active_algo == 'AStar':
-                path = self.astar_search(start, goal, walls, grid_size, heuristic_type='manhattan')
+                path = self.astar_search(start, goal, walls, grid_size,percept, heuristic_type='manhattan')
             else:
                 path = None
             self.plan = path if path else ['Up']
